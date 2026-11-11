@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/generated/prisma
+
+# sqlite wal artifacts (dev.db is committed)
+dev.db-wal
+dev.db-shm
