@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Category {
+  id    String @id @default(cuid())
+  slug  String @unique
+  name  String
+  games Game[]
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String
+  thumbnail   String 
+  gamePath    String 
+  controls    String? 
+  tags        String   @default("[]") 
+  featured    Boolean  @default(false)
+  hasTouch    Boolean  @default(false) // jouable sur mobile
+  createdAt   DateTime @default(now())
+
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+
+  @@index([categoryId])
+  @@index([featured])
+}
