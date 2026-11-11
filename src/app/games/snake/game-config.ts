@@ -2,7 +2,7 @@ export type Direction = "up" | "down" | "left" | "right";
 
 export type DifficultyId = "facile" | "normal" | "difficile";
 
-export type GridSizeId = "petite" | "moyenne" | "grande";
+export type GridSizeId = "petite" | "moyenne" | "grande" | "geant";
 
 export interface Point {
   x: number;
@@ -44,7 +44,7 @@ export interface DifficultyPreset {
   acceleration: number;
   /** Whether the snake teleports through the walls. */
   wrap: boolean;
-  /** Number of static blocks placed on the board. */
+  /** Obstacle count on the reference 24×24 board; scaled by the board area. */
   obstacles: number;
   /** Score gained per fruit. */
   points: number;
@@ -58,6 +58,9 @@ export interface GridSizeOption {
 
 /** Logical pixels per board cell. The canvas is upscaled with `image-rendering: pixelated`. */
 export const CELL_SIZE = 10;
+
+/** Board size the difficulty obstacle counts are expressed for. */
+export const REFERENCE_CELLS = 24;
 
 export const DIRECTIONS: Record<Direction, Point> = {
   up: { x: 0, y: -1 },
@@ -104,15 +107,16 @@ export const DIFFICULTIES: DifficultyPreset[] = [
     minTick: 60,
     acceleration: 4,
     wrap: false,
-    obstacles: 8,
+    obstacles: 10,
     points: 20,
   },
 ];
 
 export const GRID_SIZES: GridSizeOption[] = [
-  { id: "petite", label: "PETITE — 12 × 12", cells: 12 },
-  { id: "moyenne", label: "MOYENNE — 16 × 16", cells: 16 },
-  { id: "grande", label: "GRANDE — 20 × 20", cells: 20 },
+  { id: "petite", label: "PETITE — 16 × 16", cells: 16 },
+  { id: "moyenne", label: "MOYENNE — 24 × 24", cells: 24 },
+  { id: "grande", label: "GRANDE — 32 × 32", cells: 32 },
+  { id: "geant", label: "GÉANTE — 40 × 40", cells: 40 },
 ];
 
 export const DEFAULT_SETTINGS: SnakeSettings = {
@@ -233,7 +237,15 @@ export function createGame(
 
   const obstacles =
     preset.obstacles > 0
-      ? buildObstacles(cells, cells, preset.obstacles, snake, rng)
+      ? buildObstacles(
+          cells,
+          cells,
+          Math.round(
+            (preset.obstacles * cells * cells) / (REFERENCE_CELLS * REFERENCE_CELLS)
+          ),
+          snake,
+          rng
+        )
       : [];
 
   const food =

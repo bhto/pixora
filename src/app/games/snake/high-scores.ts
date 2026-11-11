@@ -1,15 +1,23 @@
-import { HIGH_SCORE_STORAGE_KEY, type DifficultyId } from "./game-config";
+import {
+  HIGH_SCORE_STORAGE_KEY,
+  type DifficultyId,
+  type GridSizeId,
+} from "./game-config";
 
-export interface HighScores {
-  facile: number;
-  normal: number;
-  difficile: number;
-}
+/** Best score per `difficulty:gridSize` combination. */
+export type HighScores = Record<string, number>;
 
-const EMPTY_SCORES: HighScores = { facile: 0, normal: 0, difficile: 0 };
+const EMPTY_SCORES: HighScores = {};
 
 let cache: HighScores | null = null;
 const listeners = new Set<() => void>();
+
+export function highScoreKey(
+  difficulty: DifficultyId,
+  gridSize: GridSizeId
+): string {
+  return `${difficulty}:${gridSize}`;
+}
 
 function readScores(): HighScores {
   if (typeof window === "undefined") return EMPTY_SCORES;
@@ -18,12 +26,16 @@ function readScores(): HighScores {
     const raw = window.localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
     if (!raw) return EMPTY_SCORES;
 
-    const parsed = JSON.parse(raw) as Partial<HighScores>;
-    return {
-      facile: parsed.facile ?? 0,
-      normal: parsed.normal ?? 0,
-      difficile: parsed.difficile ?? 0,
-    };
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const scores: HighScores = {};
+
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+        scores[key] = value;
+      }
+    }
+
+    return scores;
   } catch {
     return EMPTY_SCORES;
   }
@@ -57,11 +69,17 @@ export function getHighScoresServerSnapshot(): HighScores {
   return EMPTY_SCORES;
 }
 
-export function recordHighScore(difficulty: DifficultyId, score: number) {
+export function recordHighScore(
+  difficulty: DifficultyId,
+  gridSize: GridSizeId,
+  score: number
+) {
+  const key = highScoreKey(difficulty, gridSize);
   const current = getHighScoresSnapshot();
-  if (score <= current[difficulty]) return;
 
-  cache = { ...current, [difficulty]: score };
+  if (score <= (current[key] ?? 0)) return;
+
+  cache = { ...current, [key]: score };
 
   try {
     window.localStorage.setItem(HIGH_SCORE_STORAGE_KEY, JSON.stringify(cache));

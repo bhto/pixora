@@ -64,6 +64,7 @@ import {
 import {
   getHighScoresServerSnapshot,
   getHighScoresSnapshot,
+  highScoreKey,
   recordHighScore,
   subscribeHighScores,
 } from "./high-scores";
@@ -92,6 +93,7 @@ export function SnakeGame() {
   const scoreRef = useRef(0);
   const statusRef = useRef<Status>("idle");
   const difficultyRef = useRef<DifficultyId>(DEFAULT_SETTINGS.difficulty);
+  const gridSizeRef = useRef<GridSizeId>(DEFAULT_SETTINGS.gridSize);
 
   const [settings, setSettings] = useState<SnakeSettings>(DEFAULT_SETTINGS);
   const [status, setStatus] = useState<Status>("idle");
@@ -111,7 +113,8 @@ export function SnakeGame() {
 
   const activePreset = difficultyById(settings.difficulty);
   const activeGrid = gridSizeById(settings.gridSize);
-  const best = Math.max(highScores[settings.difficulty], score);
+  const bestKey = highScoreKey(settings.difficulty, settings.gridSize);
+  const best = Math.max(highScores[bestKey] ?? 0, score);
   const locked = status === "running" || status === "paused";
 
   /* ---------------------------------------------------------------- refs */
@@ -123,6 +126,10 @@ export function SnakeGame() {
   useEffect(() => {
     difficultyRef.current = settings.difficulty;
   }, [settings.difficulty]);
+
+  useEffect(() => {
+    gridSizeRef.current = settings.gridSize;
+  }, [settings.gridSize]);
 
   /* -------------------------------------------------------------- canvas */
 
@@ -171,7 +178,7 @@ export function SnakeGame() {
   const endGame = useCallback(() => {
     setStatus("over");
     playSound("over");
-    recordHighScore(difficultyRef.current, scoreRef.current);
+    recordHighScore(difficultyRef.current, gridSizeRef.current, scoreRef.current);
   }, [playSound]);
 
   const step = useCallback(() => {
@@ -463,10 +470,7 @@ export function SnakeGame() {
       return {
         eyebrow: won ? "PARFAIT" : "GAME OVER",
         title: won ? "PLATEAU REMPLI !" : "VOUS AVEZ PERDU",
-        subtitle: `Score ${score} — Record ${Math.max(
-          highScores[settings.difficulty],
-          score
-        )}`,
+        subtitle: `Score ${score} — Record ${best}`,
         action: "REJOUER",
       };
     }
@@ -481,22 +485,24 @@ export function SnakeGame() {
 
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
-        <header className="flex flex-col items-center gap-4 text-center">
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Badge>JEU</Badge>
-            <Badge variant="secondary">SNAKE</Badge>
-            <Badge variant="outline">8BITCN</Badge>
+      <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:py-6">
+        <header className="flex flex-col items-center gap-4 text-center lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:text-left">
+          <div className="flex flex-col items-center gap-3 lg:items-start">
+            <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+              <Badge>JEU</Badge>
+              <Badge variant="secondary">SNAKE</Badge>
+              <Badge variant="outline">8BITCN</Badge>
+            </div>
+            <h1 className="retro text-xl leading-relaxed sm:text-2xl">
+              SNAKE 8-BIT
+            </h1>
+            <p className="max-w-xl font-sans text-sm text-muted-foreground">
+              Avalez les fruits, allongez le serpent et évitez votre propre queue.
+              Choisissez la difficulté et jouez au clavier ou aux boutons
+              directionnels sur mobile.
+            </p>
           </div>
-          <h1 className="retro text-xl leading-relaxed sm:text-2xl">
-            SNAKE 8-BIT
-          </h1>
-          <p className="max-w-xl font-sans text-sm text-muted-foreground">
-            Avalez les fruits, allongez le serpent et évitez votre propre queue.
-            Choisissez la difficulté et jouez au clavier ou aux boutons
-            directionnels sur mobile.
-          </p>
-          <Button asChild variant="secondary" size="sm">
+          <Button asChild variant="secondary" size="sm" className="lg:shrink-0">
             <Link href="/">
               <ArrowLeft data-icon="inline-start" />
               Retour à l’accueil
@@ -504,7 +510,7 @@ export function SnakeGame() {
           </Button>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
           {/* --------------------------------------------------- game area */}
           <Card>
             <CardContent className="flex flex-col gap-4 p-4 sm:p-5">
@@ -522,7 +528,7 @@ export function SnakeGame() {
               </div>
 
               <div
-                className={`relative border-y-6 border-foreground bg-[#0b1020] dark:border-ring ${
+                className={`relative mx-auto aspect-square w-full bg-[#0b1020] lg:max-w-[min(100%,calc(100dvh_-_19rem))] ${
                   status === "running" || status === "idle" ? "touch-none" : ""
                 }`}
                 onTouchStart={onTouchStart}
@@ -530,13 +536,13 @@ export function SnakeGame() {
               >
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 z-10 -mx-1.5 border-x-6 border-foreground dark:border-ring"
+                  className="pointer-events-none absolute -inset-1.5 z-10 border-6 border-foreground dark:border-ring"
                 />
                 <canvas
                   ref={canvasRef}
                   role="img"
                   aria-label={`Plateau de snake ${activeGrid.cells} par ${activeGrid.cells}`}
-                  className="pixelated block h-auto w-full"
+                  className="pixelated block h-full w-full"
                 />
 
                 {overlay && (
@@ -572,28 +578,27 @@ export function SnakeGame() {
                   </div>
                 )}
               </div>
-
-              <DirectionPad
-                onDirection={handleDirection}
-                onCenter={handleAction}
-                centerLabel={
-                  status === "running"
-                    ? "Mettre en pause"
-                    : status === "paused"
-                      ? "Reprendre"
-                      : "Démarrer la partie"
-                }
-                centerIcon={status === "running" ? "pause" : "play"}
-              />
-
-              <p className="text-center font-sans text-xs text-muted-foreground">
-                Glissez sur le plateau ou utilisez les boutons pour tourner.
-              </p>
             </CardContent>
           </Card>
 
           {/* ------------------------------------------------------ options */}
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:max-h-[calc(100dvh_-_12rem)] lg:overflow-y-auto lg:px-1.5">
+            <DirectionPad
+              onDirection={handleDirection}
+              onCenter={handleAction}
+              centerLabel={
+                status === "running"
+                  ? "Mettre en pause"
+                  : status === "paused"
+                    ? "Reprendre"
+                    : "Démarrer la partie"
+              }
+              centerIcon={status === "running" ? "pause" : "play"}
+            />
+
+            <p className="text-center font-sans text-xs text-muted-foreground">
+              Glissez sur le plateau ou utilisez les boutons pour tourner.
+            </p>
             <Card>
               <CardHeader>
                 <CardTitle>Difficulté</CardTitle>
@@ -727,7 +732,8 @@ export function SnakeGame() {
               <CardHeader>
                 <CardTitle>Records</CardTitle>
                 <CardDescription font="normal" className="text-xs">
-                  Meilleurs scores par difficulté.
+                  Meilleurs scores en {activeGrid.cells} × {activeGrid.cells},
+                  par difficulté.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
@@ -747,7 +753,8 @@ export function SnakeGame() {
                       {preset.label}
                     </span>
                     <span className="retro text-xs">
-                      {highScores[preset.id]}
+                      {highScores[highScoreKey(preset.id, settings.gridSize)] ??
+                        0}
                     </span>
                   </div>
                 ))}
